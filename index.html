@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Capteur de Position Routière</title>
+    <title>Capteur de Position PR</title>
     <style>
         body { font-family: 'Segoe UI', Arial, sans-serif; padding: 20px; background: #f4f6f9; text-align: center; }
         .card { background: white; padding: 25px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); max-width: 400px; margin: 30px auto; }
@@ -19,7 +19,7 @@
 <body>
 
     <div class="card">
-        <h1>Mon Positionnement Route</h1>
+        <h1>Mon Positionnement PR</h1>
         
         <div id="statut" class="status">Prêt à localiser</div>
         
@@ -27,18 +27,18 @@
         
         <div id="affichage-coords" class="coords">Lat: -- | Lon: --</div>
         
-        <button id="btn-gps" onclick="obtenirPosition()">📍 Trouver ma route actuelle</button>
+        <button id="btn-gps" onclick="obtenirPR()">📍 Obtenir mon PR actuel</button>
     </div>
 
     <script>
-        function obtenirPosition() {
+        function obtenirPR() {
             const btn = document.getElementById('btn-gps');
             const statut = document.getElementById('statut');
             const affichagePr = document.getElementById('affichage-pr');
             const affichageCoords = document.getElementById('affichage-coords');
 
             if (!navigator.geolocation) {
-                alert("La géolocalisation n'est pas supportée.");
+                alert("La géolocalisation n'est pas disponible.");
                 return;
             }
 
@@ -48,59 +48,55 @@
 
             navigator.geolocation.getCurrentPosition(
                 (position) => {
-                    // On nettoie les coordonnées en limitant strictement à 5 décimales
-                    const lat = parseFloat(position.coords.latitude.toFixed(5));
-                    const lon = parseFloat(position.coords.longitude.toFixed(5));
+                    // On isole les coordonnées à 6 décimales (standard IGN)
+                    const lat = parseFloat(position.coords.latitude.toFixed(6));
+                    const lon = parseFloat(position.coords.longitude.toFixed(6));
                     
                     affichageCoords.innerText = `Lat: ${lat} | Lon: ${lon}`;
-                    statut.innerText = "Scan de la zone...";
+                    statut.innerText = "Calcul du PR sur le réseau IGN...";
 
-                    // Requête Overpass de secours standardisée
-                    const requeteBrute = `[out:json];way(around:60,${lat},${lon})[highway];out tags;`;
-                    
-                    // Sécurité anti-erreur 400 : On utilise le constructeur officiel pour encoder l'URL proprement
+                    // Sécurité totale : On utilise URLSearchParams pour envoyer les paramètres à l'IGN sans erreur 400
                     const params = new URLSearchParams();
-                    params.append('data', requeteBrute);
-                    
-                    const urlOSM = `https://overpass-api.de/api/interpreter?${params.toString()}`;
+                    params.append('lon', lon);
+                    params.append('lat', lat);
+                    params.append('index', 'reverse_geocode_lineaire');
+                    params.append('limit', '1');
 
-                    fetch(urlOSM)
+                    const urlIGN = `https://data.geopf.fr/geocodage/reverse?${params.toString()}`;
+
+                    fetch(urlIGN)
                         .then(response => {
                             if (!response.ok) throw new Error(`Code ${response.status}`);
                             return response.json();
                         })
                         .then(data => {
-                            if (data.elements && data.elements.length > 0) {
-                                const tags = data.elements[0].tags;
-                                const ref = tags.ref || "";
-                                const name = tags.name || "";
+                            if (data.features && data.features.length > 0) {
+                                const props = data.features[0].properties;
                                 
-                                if (ref && name) {
-                                    affichagePr.innerText = `${ref} (${name})`;
-                                } else if (ref) {
-                                    affichagePr.innerText = ref;
-                                } else if (name) {
-                                    affichagePr.innerText = name;
-                                } else {
-                                    affichagePr.innerText = "Voie sans nom";
-                                }
+                                // Récupération des données métiers du bornage routier français
+                                const nomRoute = props.route || "Route sans nom";
+                                const numPR = props.pr !== undefined ? props.pr : "?";
+                                const distanceAbs = props.abs !== undefined ? Math.round(props.abs) : 0;
 
+                                // Formatage identique aux besoins de patrouille : "D920 - PR 12 + 145m"
+                                affichagePr.innerText = `${nomRoute} - PR ${numPR} + ${distanceAbs}m`;
+                                
                                 affichagePr.style.color = "#27ae60";
                                 affichagePr.style.borderColor = "#2ecc71";
                                 affichagePr.style.background = "#e8f8f0";
-                                statut.innerText = "Route identifiée !";
+                                statut.innerText = "PR localisé avec succès !";
                             } else {
-                                affichagePr.innerText = "📍 Aucune route proche";
+                                affichagePr.innerText = "📍 Hors réseau à PR";
                                 affichagePr.style.color = "#d35400";
                                 affichagePr.style.borderColor = "#e67e22";
                                 affichagePr.style.background = "#fdf2e9";
-                                statut.innerText = "Rapprochez-vous d'une route carrossable (rayon 60m).";
+                                statut.innerText = "Aucun axe routier à PR trouvé (soyez bien sur une départementale/nationale).";
                             }
                             btn.disabled = false;
                         })
                         .catch(erreur => {
                             console.error(erreur);
-                            affichagePr.innerText = "❌ Erreur de réseau";
+                            affichagePr.innerText = "❌ Erreur IGN";
                             affichagePr.style.color = "#c0392b";
                             affichagePr.style.borderColor = "#e74c3c";
                             affichagePr.style.background = "#fadbd8";
@@ -109,7 +105,7 @@
                         });
                 },
                 (erreurGPS) => {
-                    statut.innerText = "Signal GPS perdu ou refusé.";
+                    statut.innerText = "Signal GPS insuffisant.";
                     affichagePr.innerText = "-- Position impossible --";
                     btn.disabled = false;
                 },
