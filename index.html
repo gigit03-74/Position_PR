@@ -3,146 +3,85 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Patrouille 03 - Toutes Routes</title>
+    <title>Patrouille 03 - Live</title>
     <style>
-        body { font-family: 'Segoe UI', Arial, sans-serif; padding: 20px; background: #f4f6f9; text-align: center; }
-        .card { background: white; padding: 25px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); max-width: 400px; margin: 30px auto; }
-        h1 { color: #2c3e50; font-size: 22px; margin-top: 0; }
-        .logo-dept { background: #0055a5; color: white; padding: 2px 8px; border-radius: 4px; font-size: 14px; }
-        .pr-display { font-size: 24px; font-weight: bold; color: #27ae60; background: #e8f8f0; padding: 15px; border-radius: 8px; margin: 20px 0; border: 2px solid #2ecc71; }
-        .coords { font-size: 12px; color: #7f8c8d; margin-bottom: 20px; }
-        button { background: #0055a5; color: white; border: none; padding: 14px 24px; font-size: 16px; font-weight: bold; border-radius: 6px; cursor: pointer; width: 100%; transition: background 0.2s; }
-        button:hover { background: #003f7a; }
-        button:disabled { background: #bdc3c7; }
-        .status { font-size: 14px; color: #2980b9; font-style: italic; font-weight: bold; }
+        body { font-family: Arial, sans-serif; padding: 20px; background: #2c3e50; text-align: center; color: white; }
+        .card { background: #34495e; padding: 25px; border-radius: 15px; box-shadow: 0 6px 20px rgba(0,0,0,0.3); max-width: 360px; margin: 20px auto; border: 1px solid #455a64; }
+        h2 { margin-top: 0; color: #ecf0f1; font-size: 20px; }
+        .pr-display { font-size: 32px; font-weight: bold; color: #2ecc71; background: #1a252f; padding: 20px; border-radius: 10px; margin: 20px 0; border: 2px solid #2ecc71; letter-spacing: 1px; }
+        .coords { font-size: 12px; color: #bdc3c7; margin-top: 15px; }
+        .status { font-size: 15px; color: #f1c40f; font-style: italic; font-weight: bold; }
+        .live-indicator { display: inline-block; width: 10px; height: 10px; background-color: #e74c3c; border-radius: 50%; margin-right: 5px; animation: blink 1s infinite; }
+        @keyframes blink { 0% { opacity: 0.2; } 50% { opacity: 1; } 100% { opacity: 0.2; } }
     </style>
 </head>
 <body>
 
     <div class="card">
-        <h1>📍 Patrouille <span class="logo-dept">03</span></h1>
-        
-        <div id="statut" class="status">Chargement de la base routière de l'Allier...</div>
-        
-        <div id="affichage-pr" class="pr-display">-- En attente --</div>
-        
-        <div id="affichage-coords" class="coords">Lat: -- | Lon: --</div>
-        
-        <button id="btn-gps" onclick="trouverPrAllier()" disabled>📍 Calculer mon PR (Toutes RD)</button>
+        <h2>📍 Patrouille Live Allier (03)</h2>
+        <div id="statut" class="status"><span class="live-indicator"></span>Démarrage du suivi...</div>
+        <div id="affichage-pr" class="pr-display">-- RECHERCHE --</div>
+        <div id="affichage-coords" class="coords">En attente du signal GPS...</div>
     </div>
 
     <script>
-        let baseDonneesPR = [];
-
-        // ÉTAPE 1 : Au démarrage, l'application télécharge le fichier officiel des PR de l'Allier
-        // Ce fichier contient TOUTES les routes (RN7, N145, et toutes les RD de l'Allier)
+        // Dès que la page s'ouvre, on lance le suivi automatique
         window.onload = function() {
-            const statut = document.getElementById('statut');
-            const btn = document.getElementById('btn-gps');
+            if (!navigator.geolocation) {
+                document.getElementById('statut').innerText = "GPS non supporté";
+                return;
+            }
 
-            // Lien direct vers l'extraction officielle Open Data des PR du département 03
-            const urlDataGouv = "https://raw.githubusercontent.com/etalab/geozones/master/data/communes-france.json"; 
-            // NOTE TECHNIQUE : J'utilise temporairement ce point d'accès stable pour valider votre chargement,
-            // le script convertit le flux des bornes du 03.
-            
-            statut.innerText = "Base Allier 03 chargée ! Prêt sur le terrain.";
-            btn.disabled = false;
+            // watchPosition suit ton déplacement en temps réel
+            navigator.geolocation.watchPosition((position) => {
+                const lat = position.coords.latitude;
+                const lon = position.coords.longitude;
+                const vitesse = position.coords.speed ? Math.round(position.coords.speed * 3.6) : 0; // Vitesse en km/h
+                
+                document.getElementById('affichage-coords').innerText = `Lat: ${lat.toFixed(5)} | Lon: ${lon.toFixed(5)} | ${vitesse} km/h`;
+                document.getElementById('statut').innerHTML = '<span class="live-indicator"></span>Calcul en cours...';
+
+                // Requête ultra-rapide sur la route la plus proche
+                const query = `[out:json];way(around:40,${lat},${lon})[highway];out geom;`;
+                const url = `https://overpass-api.de/api/interpreter?data=${encodeURIComponent(query)}`;
+
+                fetch(url)
+                .then(res => res.json())
+                .then(data => {
+                    if (data.elements && data.elements.length > 0) {
+                        const way = data.elements[0];
+                        const route = way.tags.ref || way.tags.name || "Route communale";
+                        
+                        if (way.geometry) {
+                            const p = way.geometry[0];
+                            const R = 6371e3;
+                            const dLat = (lat - p.lat) * Math.PI / 180;
+                            const dLon = (lon - p.lon) * Math.PI / 180;
+                            const a = Math.sin(dLat/2) * Math.sin(dLat/2) + Math.cos(p.lat * Math.PI / 180) * Math.cos(lat * Math.PI / 180) * Math.sin(dLon/2) * Math.sin(dLon/2);
+                            const dist = R * (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)));
+                            
+                            // Mise à jour de l'écran en direct
+                            document.getElementById('affichage-pr').innerText = `${route} \n PR ${Math.floor(dist/1000)} + ${Math.round(dist%1000)}m`;
+                        } else {
+                            document.getElementById('affichage-pr').innerText = route;
+                        }
+                        document.getElementById('statut').innerHTML = '<span class="live-indicator"></span>Suivi en direct actif';
+                    } else {
+                        document.getElementById('affichage-pr').innerText = "Hors réseau RD";
+                        document.getElementById('statut').innerHTML = '<span class="live-indicator"></span>Aucune route à 40m';
+                    }
+                })
+                .catch(() => {
+                    document.getElementById('statut').innerHTML = '<span class="live-indicator"></span>Erreur de rafraîchissement';
+                });
+            }, () => {
+                document.getElementById('statut').innerText = "Signal GPS perdu";
+            }, {
+                enableHighAccuracy: true, // Force le GPS haute précision (indispensable en voiture)
+                maximumAge: 0,            // Pas de position en cache, on veut du réel
+                timeout: 5000             // Relance toutes les 5 secondes max si ça bloque
+            });
         };
-
-        // Formule mathématique de calcul de distance (Haversine)
-        function calculerDistanceBrute(lat1, lon1, lat2, lon2) {
-            const R = 6371e3; 
-            const p1 = lat1 * Math.PI / 180;
-            const p2 = lat2 * Math.PI / 180;
-            const dLat = (lat2 - lat1) * Math.PI / 180;
-            const dLon = (lon2 - lon1) * Math.PI / 180;
-            const a = Math.sin(dLat/2) * Math.sin(dLat/2) + Math.cos(p1) * Math.cos(p2) * Math.sin(dLon/2) * Math.sin(dLon/2);
-            return R * (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)));
-        }
-
-        // ÉTAPE 2 : Quand vous cliquez, le téléphone compare votre GPS avec TOUTES les routes de l'Allier
-        function trouverPrAllier() {
-            const btn = document.getElementById('btn-gps');
-            const statut = document.getElementById('statut');
-            const affichagePr = document.getElementById('affichage-pr');
-            const affichageCoords = document.getElementById('affichage-coords');
-
-            btn.disabled = true;
-            statut.innerText = "Interrogation du satellite GPS...";
-
-            navigator.geolocation.getCurrentPosition(
-                (position) => {
-                    const monLat = position.coords.latitude;
-                    const monLon = position.coords.longitude;
-
-                    affichageCoords.innerText = `Lat: ${monLat.toFixed(5)} | Lon: ${monLon.toFixed(5)}`;
-                    statut.innerText = "Balayage des 5282 km de routes...";
-
-                    // Utilisation du moteur de secours universel (Overpass) configuré SANS FILTRE
-                    // pour attraper absolument TOUTES les catégories de RD (1, 2 et 3) à 40m aux alentours
-                    const query = `[out:json];way(around:40,${monLat},${monLon})[highway];out geom;`;
-                    const urlOSM = `https://overpass-api.de/api/interpreter?data=${encodeURIComponent(query)}`;
-
-                    fetch(urlOSM)
-                        .then(response => {
-                            if (!response.ok) throw new Error("Erreur réseau");
-                            return response.json();
-                        })
-                        .then(data => {
-                            if (data.elements && data.elements.length > 0) {
-                                const routeTrouvee = data.elements[0];
-                                const tags = routeTrouvee.tags;
-                                
-                                // Extraction du numéro de RD (ex: D2209, D906, D12...)
-                                const nomRoute = tags.ref || tags.name || "Axe secondaire";
-
-                                if (routeTrouvee.geometry && routeTrouvee.geometry.length > 0) {
-                                    // Calcul de la borne kilométrique par rapport à l'origine du tracé de la route
-                                    const origine = routeTrouvee.geometry[0];
-                                    const distanceMetres = calculerDistanceBrute(origine.lat, origine.lon, monLat, monLon);
-
-                                    const prCalculé = Math.floor(distanceMetres / 1000);
-                                    const resteMetres = Math.round(distanceMetres % 1000);
-
-                                    // Rendu métier impeccable
-                                    affichagePr.innerText = `${nomRoute} - PR ${prCalculé} + ${resteMetres}m`;
-                                    affichagePr.style.color = "#27ae60";
-                                    affichagePr.style.borderColor = "#2ecc71";
-                                    affichagePr.style.background = "#e8f8f0";
-                                    statut.innerText = "Axe et PR validés !";
-                                } else {
-                                    affichagePr.innerText = nomRoute;
-                                    statut.innerText = "Route trouvée sans borne.";
-                                }
-                            } else {
-                                // Si vous êtes sur un chemin de terre non classé en RD
-                                affichagePr.innerText = "📍 Hors réseau départemental";
-                                affichagePr.style.color = "#d35400";
-                                affichagePr.style.borderColor = "#e67e22";
-                                affichagePr.style.background = "#fdf2e9";
-                                statut.innerText = "Aucune RD répertoriée dans un rayon de 40 mètres.";
-                            }
-                            btn.disabled = false;
-                        })
-                        .catch(erreur => {
-                            console.error(erreur);
-                            affichagePr.innerText = "❌ Erreur";
-                            statut.innerText = "Problème de communication avec le capteur.";
-                            btn.disabled = false;
-                        });
-                },
-                (erreurGPS) => {
-                    statut.innerText = "Signal GPS perdu.";
-                    affichagePr.innerText = "-- GPS déconnecté --";
-                    btn.disabled = false;
-                },
-                {
-                    enableHighAccuracy: true,
-                    timeout: 10000,
-                    maximumAge: 0
-                }
-            );
-        }
     </script>
 </body>
 </html>
