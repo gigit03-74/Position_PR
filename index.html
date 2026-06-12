@@ -48,20 +48,20 @@
 
             navigator.geolocation.getCurrentPosition(
                 (position) => {
-                    // Force l'extraction en nombres à 6 décimales max (exigence IGN pour éviter l'erreur 400)
+                    // Nettoyage strict des coordonnées (6 décimales pour l'IGN)
                     const lat = parseFloat(position.coords.latitude.toFixed(6));
                     const lon = parseFloat(position.coords.longitude.toFixed(6));
                     
                     affichageCoords.innerText = `Lat: ${lat} | Lon: ${lon}`;
-                    statut.innerText = "Interrogation des serveurs IGN...";
+                    statut.innerText = "Interrogation du réseau routier IGN...";
 
-                    // URL universelle révisée de la GéOPF (Plus robuste face aux erreurs de syntaxe)
-                    const urlIGN = `https://data.geopf.fr/geocodage/reverse?lon=${lon}&lat=${lat}&limit=1`;
+                    // URL officielle GéOPF configurée explicitement pour l'index routier linéaire
+                    const urlIGN = `https://data.geopf.fr/geocodage/reverse?lon=${lon}&lat=${lat}&index=reverse_geocode_lineaire&limit=1`;
 
                     fetch(urlIGN)
                         .then(response => {
                             if (!response.ok) {
-                                throw new Error(`Code ${response.status} : Problème technique IGN`);
+                                throw new Error(`Erreur ${response.status} : Problème de serveur IGN`);
                             }
                             return response.json();
                         })
@@ -69,29 +69,23 @@
                             if (data.features && data.features.length > 0) {
                                 const props = data.features[0].properties;
                                 
-                                // Extraction des données de repères routiers ou d'adresse
-                                const nomRoute = props.route || props.nom || props.label || "Route indéterminée";
-                                
-                                // Si l'IGN fournit les données de bornage (PR)
-                                if (props.pr !== undefined) {
-                                    const numPR = props.pr;
-                                    const distanceAbs = props.abs !== undefined ? Math.round(props.abs) : 0;
-                                    affichagePr.innerText = `${nomRoute} - PR ${numPR} + ${distanceAbs}m`;
-                                } else {
-                                    // Système de secours si vous êtes sur une rue sans PR officiel (affiche l'adresse ou le nom de voie)
-                                    affichagePr.innerText = nomRoute;
-                                }
+                                // Récupération des attributs spécifiques au bornage routier français
+                                const nomRoute = props.route || "Route sans nom";
+                                const numPR = props.pr !== undefined ? props.pr : "?";
+                                const distanceAbs = props.abs !== undefined ? Math.round(props.abs) : 0;
 
+                                // Affichage du résultat
+                                affichagePr.innerText = `${nomRoute} - PR ${numPR} + ${distanceAbs}m`;
                                 affichagePr.style.color = "#27ae60";
                                 affichagePr.style.borderColor = "#2ecc71";
                                 affichagePr.style.background = "#e8f8f0";
-                                statut.innerText = "Localisation réussie !";
+                                statut.innerText = "PR identifié avec succès !";
                             } else {
-                                affichagePr.innerText = "Zone non cartographiée";
+                                affichagePr.innerText = "📍 Hors réseau à PR";
                                 affichagePr.style.color = "#d35400";
                                 affichagePr.style.borderColor = "#e67e22";
                                 affichagePr.style.background = "#fdf2e9";
-                                statut.innerText = "Aucun élément trouvé à ces coordonnées.";
+                                statut.innerText = "Aucun axe à bornage kilométrique trouvé à proximité immédiate.";
                             }
                             btn.disabled = false;
                         })
@@ -106,7 +100,7 @@
                         });
                 },
                 (erreurGPS) => {
-                    statut.innerText = "Signal GPS insuffisant.";
+                    statut.innerText = "Signal GPS défaillant.";
                     affichagePr.innerText = "-- Localisation impossible --";
                     btn.disabled = false;
                 },
