@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Capteur de PR Routier</title>
+    <style>
+        body { font-family: 'Segoe UI', Arial, sans-serif; padding: 20px; background: #f4f6f9; text-align: center; }
+        .card { background: white; padding: 25px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); max-width: 400px; margin: 30px auto; }
+        h1 { color: #2c3e50; font-size: 22px; margin-top: 0; }
+        .pr-display { font-size: 24px; font-weight: bold; color: #27ae60; background: #e8f8f0; padding: 15px; border-radius: 8px; margin: 20px 0; border: 2px solid #2ecc71; }
+        .coords { font-size: 12px; color: #7f8c8d; margin-bottom: 20px; }
+        button { background: #2980b9; color: white; border: none; padding: 12px 24px; font-size: 16px; font-weight: bold; border-radius: 6px; cursor: pointer; width: 100%; transition: background 0.2s; }
+        button:hover { background: #3498db; }
+        button:disabled { background: #bdc3c7; }
+        .status { font-size: 14px; color: #e67e22; font-style: italic; }
+    </style>
+</head>
+<body>
+
+    <div class="card">
+        <h1>Mon Positionnement PR</h1>
+        
+        <div id="statut" class="status">Prêt à localiser</div>
+        
+        <div id="affichage-pr" class="pr-display">-- En attente --</div>
+        
+        <div id="affichage-coords" class="coords">Lat: -- | Lon: --</div>
+        
+        <button id="btn-gps" onclick="obtenirPR()">📍 Obtenir mon PR actuel</button>
+    </div>
+
+    <script>
+        function obtenirPR() {
+            const btn = document.getElementById('btn-gps');
+            const statut = document.getElementById('statut');
+            const affichagePr = document.getElementById('affichage-pr');
+            const affichageCoords = document.getElementById('affichage-coords');
+
+            if (!navigator.geolocation) {
+                alert("La géolocalisation n'est pas supportée par votre navigateur.");
+                return;
+            }
+
+            // Étape 1 : Activer le GPS et changer les statuts visuels
+            btn.disabled = true;
+            statut.innerText = "Recherche du signal satellite (GPS)...";
+            affichagePr.innerText = "Calcul...";
+
+            navigator.geolocation.getCurrentPosition(
+                (position) => {
+                    const lat = position.coords.latitude;
+                    const lon = position.coords.longitude;
+                    
+                    // Affichage des coordonnées brutes sous le bloc
+                    affichageCoords.innerText = `Lat: ${lat.toFixed(5)} | Lon: ${lon.toFixed(5)}`;
+                    statut.innerText = "Connexion aux serveurs IGN...";
+
+                    // Étape 2 : Interroger l'API Géocodage Linéaire de l'IGN
+                    // On utilise l'index officiel "reverse_geocode_lineaire"
+                    const urlIGN = `https://data.geopf.fr/geocodage/reverse?lon=${lon}&lat=${lat}&index=reverse_geocode_lineaire`;
+
+                    fetch(urlIGN)
+                        .then(response => {
+                            if (!response.ok) throw new Error("Erreur serveur IGN");
+                            return response.json();
+                        })
+                        .then(data => {
+                            // Étape 3 : Traiter la réponse de l'IGN
+                            if (data.features && data.features.length > 0) {
+                                const infosRoute = data.features[0].properties;
+                                
+                                const nomRoute = infosRoute.route || "Route inconnue";
+                                const numPR = infosRoute.pr || "0";
+                                const distanceAbs = Math.round(infosRoute.abs || 0); // Distance en mètres après le PR
+
+                                // Formatage standard : ex "D920 - PR 12 + 150m"
+                                affichagePr.innerText = `${nomRoute} - PR ${numPR} + ${distanceAbs}m`;
+                                statut.innerText = "Position trouvée avec succès !";
+                            } else {
+                                affichagePr.innerText = "Hors réseau routier";
+                                statut.innerText = "Aucune route nationale ou départementale proche.";
+                            }
+                            btn.disabled = false;
+                        })
+                        .catch(erreur => {
+                            console.error(erreur);
+                            affichagePr.innerText = "Erreur IGN";
+                            statut.innerText = "Impossible de joindre le service de calcul des PR.";
+                            btn.disabled = false;
+                        });
+                },
+                (erreurGPS) => {
+                    alert("Erreur GPS : Assurez-vous d'activer la localisation et d'autoriser l'application.");
+                    statut.innerText = "Échec de la localisation";
+                    affichagePr.innerText = "-- Échec --";
+                    btn.disabled = false;
+                },
+                {
+                    enableHighAccuracy: true, // Force l'utilisation du vrai GPS (haute précision) et non du Wi-Fi
+                    timeout: 10000, // Laisse 10 secondes max au téléphone pour capter les satellites
+                    maximumAge: 0 // Interdit d'utiliser une position en cache (périmée)
+                }
+            );
+        }
+    </script>
+</body>
+</html>
