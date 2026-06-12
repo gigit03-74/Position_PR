@@ -3,85 +3,102 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Patrouille 03 - Live</title>
+    <title>Patrouille Allier - 25 Axes</title>
     <style>
-        body { font-family: Arial, sans-serif; padding: 20px; background: #2c3e50; text-align: center; color: white; }
-        .card { background: #34495e; padding: 25px; border-radius: 15px; box-shadow: 0 6px 20px rgba(0,0,0,0.3); max-width: 360px; margin: 20px auto; border: 1px solid #455a64; }
-        h2 { margin-top: 0; color: #ecf0f1; font-size: 20px; }
-        .pr-display { font-size: 32px; font-weight: bold; color: #2ecc71; background: #1a252f; padding: 20px; border-radius: 10px; margin: 20px 0; border: 2px solid #2ecc71; letter-spacing: 1px; }
-        .coords { font-size: 12px; color: #bdc3c7; margin-top: 15px; }
-        .status { font-size: 15px; color: #f1c40f; font-style: italic; font-weight: bold; }
-        .live-indicator { display: inline-block; width: 10px; height: 10px; background-color: #e74c3c; border-radius: 50%; margin-right: 5px; animation: blink 1s infinite; }
-        @keyframes blink { 0% { opacity: 0.2; } 50% { opacity: 1; } 100% { opacity: 0.2; } }
+        body { font-family: Arial, sans-serif; padding: 20px; background: #111; text-align: center; color: white; }
+        .card { background: #222; padding: 25px; border-radius: 15px; box-shadow: 0 6px 20px rgba(0,0,0,0.5); max-width: 380px; margin: 20px auto; border: 2px solid #333; }
+        h2 { margin-top: 0; color: #ecf0f1; font-size: 18px; letter-spacing: 1px; }
+        .pr-display { font-size: 36px; font-weight: bold; color: #2ecc71; background: #000; padding: 25px; border-radius: 10px; margin: 20px 0; border: 3px solid #2ecc71; line-height: 1.3; font-family: 'Courier New', monospace; white-space: pre-line; }
+        .coords { font-size: 11px; color: #666; font-family: monospace; }
+        .status { font-size: 14px; color: #f1c40f; font-weight: bold; }
+        .precision-badge { display: inline-block; padding: 4px 8px; background: #2980b9; border-radius: 4px; font-size: 11px; margin-top: 5px; font-weight: bold; }
     </style>
 </head>
 <body>
 
     <div class="card">
-        <h2>📍 Patrouille Live Allier (03)</h2>
-        <div id="statut" class="status"><span class="live-indicator"></span>Démarrage du suivi...</div>
-        <div id="affichage-pr" class="pr-display">-- RECHERCHE --</div>
-        <div id="affichage-coords" class="coords">En attente du signal GPS...</div>
+        <h2>📍 LOCALISATEUR 25 AXES (03)</h2>
+        <div id="statut" class="status">Chargement de la base routière...</div>
+        <div id="affichage-pr" class="pr-display">DÉMARRAGE...</div>
+        <div id="precision" class="precision-badge">GPS : En attente</div>
+        <div id="affichage-coords" class="coords" style="margin-top:15px;">Calcul 100% Local (0ms)</div>
     </div>
 
     <script>
-        // Dès que la page s'ouvre, on lance le suivi automatique
+        let tablePR = [];
+
+        // Chargement immédiat du fichier de tes routes
         window.onload = function() {
-            if (!navigator.geolocation) {
-                document.getElementById('statut').innerText = "GPS non supporté";
-                return;
-            }
-
-            // watchPosition suit ton déplacement en temps réel
-            navigator.geolocation.watchPosition((position) => {
-                const lat = position.coords.latitude;
-                const lon = position.coords.longitude;
-                const vitesse = position.coords.speed ? Math.round(position.coords.speed * 3.6) : 0; // Vitesse en km/h
-                
-                document.getElementById('affichage-coords').innerText = `Lat: ${lat.toFixed(5)} | Lon: ${lon.toFixed(5)} | ${vitesse} km/h`;
-                document.getElementById('statut').innerHTML = '<span class="live-indicator"></span>Calcul en cours...';
-
-                // Requête ultra-rapide sur la route la plus proche
-                const query = `[out:json];way(around:40,${lat},${lon})[highway];out geom;`;
-                const url = `https://overpass-api.de/api/interpreter?data=${encodeURIComponent(query)}`;
-
-                fetch(url)
+            fetch('routes03.json')
                 .then(res => res.json())
                 .then(data => {
-                    if (data.elements && data.elements.length > 0) {
-                        const way = data.elements[0];
-                        const route = way.tags.ref || way.tags.name || "Route communale";
-                        
-                        if (way.geometry) {
-                            const p = way.geometry[0];
-                            const R = 6371e3;
-                            const dLat = (lat - p.lat) * Math.PI / 180;
-                            const dLon = (lon - p.lon) * Math.PI / 180;
-                            const a = Math.sin(dLat/2) * Math.sin(dLat/2) + Math.cos(p.lat * Math.PI / 180) * Math.cos(lat * Math.PI / 180) * Math.sin(dLon/2) * Math.sin(dLon/2);
-                            const dist = R * (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)));
-                            
-                            // Mise à jour de l'écran en direct
-                            document.getElementById('affichage-pr').innerText = `${route} \n PR ${Math.floor(dist/1000)} + ${Math.round(dist%1000)}m`;
-                        } else {
-                            document.getElementById('affichage-pr').innerText = route;
-                        }
-                        document.getElementById('statut').innerHTML = '<span class="live-indicator"></span>Suivi en direct actif';
-                    } else {
-                        document.getElementById('affichage-pr').innerText = "Hors réseau RD";
-                        document.getElementById('statut').innerHTML = '<span class="live-indicator"></span>Aucune route à 40m';
-                    }
+                    tablePR = data;
+                    document.getElementById('statut').innerText = "Base 25 routes chargée. Prêt !";
+                    lancerSuivi();
                 })
-                .catch(() => {
-                    document.getElementById('statut').innerHTML = '<span class="live-indicator"></span>Erreur de rafraîchissement';
+                .catch(err => {
+                    document.getElementById('statut').innerText = "Erreur de chargement du fichier JSON";
+                    document.getElementById('affichage-pr').innerText = "ERREUR FICHIER";
                 });
-            }, () => {
-                document.getElementById('statut').innerText = "Signal GPS perdu";
-            }, {
-                enableHighAccuracy: true, // Force le GPS haute précision (indispensable en voiture)
-                maximumAge: 0,            // Pas de position en cache, on veut du réel
-                timeout: 5000             // Relance toutes les 5 secondes max si ça bloque
-            });
         };
+
+        function distancePrecise(lat1, lon1, lat2, lon2) {
+            const R = 6371000; // Rayon de la Terre en mètres
+            const dLat = (lat2 - lat1) * Math.PI / 180;
+            const dLon = (lon2 - lon1) * Math.PI / 180;
+            const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+                      Math.sin(dLon/2) * Math.sin(dLon/2);
+            return R * (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)));
+        }
+
+        function lancerSuivi() {
+            navigator.geolocation.watchPosition((position) => {
+                const myLat = position.coords.latitude;
+                const myLon = position.coords.longitude;
+                const gpsAccuracy = position.coords.accuracy;
+                
+                document.getElementById('precision').innerText = `Précision GPS : ± ${Math.round(gpsAccuracy)}m`;
+                document.getElementById('affichage-coords').innerText = `LAT: ${myLat.toFixed(6)} | LON: ${myLon.toFixed(6)}`;
+
+                let plusPetiteDistance = Infinity;
+                let borneLaPlusProche = null;
+
+                // Scan local instantané
+                for (let i = 0; i < tablePR.length; i++) {
+                    const borne = tablePR[i];
+                    const d = distancePrecise(myLat, myLon, borne.lat, borne.lon);
+                    
+                    if (d < plusPetiteDistance) {
+                        plusPetiteDistance = d;
+                        borneLaPlusProche = borne;
+                    }
+                }
+
+                // Affichage précis si une de tes 25 routes est détectée à proximité
+                if (borneLaPlusProche && plusPetiteDistance < 2000) {
+                    const route = borneLaPlusProche.r;
+                    const pr = borneLaPlusProche.pr;
+                    const metresCumules = Math.round(plusPetiteDistance);
+
+                    document.getElementById('affichage-pr').innerText = `${route}\nPR ${pr} + ${metresCumules}m`;
+                    document.getElementById('statut').innerText = "SUIVI TEMPS RÉEL ACTIF";
+                    document.getElementById('statut').style.color = "#2ecc71";
+                } else {
+                    document.getElementById('affichage-pr').innerText = "HORS ZONE";
+                    document.getElementById('statut').innerText = "Éloigné de tes 25 axes de patrouille.";
+                    document.getElementById('statut').style.color = "#e67e22";
+                }
+
+            }, () => {
+                document.getElementById('statut').innerText = "SIGNAL GPS INTROUVABLE";
+                document.getElementById('statut').style.color = "#e74c3c";
+            }, {
+                enableHighAccuracy: true,
+                maximumAge: 0,
+                timeout: 4000
+            });
+        }
     </script>
 </body>
 </html>
