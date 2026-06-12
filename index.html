@@ -32,88 +32,98 @@
     </div>
 
     <script>
-        function obtenirPR() {
-            const btn = document.getElementById('btn-gps');
-            const statut = document.getElementById('statut');
-            const affichagePr = document.getElementById('affichage-pr');
-            const affichageCoords = document.getElementById('affichage-coords');
+    function obtenirPR() {
+        const btn = document.getElementById('btn-gps');
+        const statut = document.getElementById('statut');
+        const affichagePr = document.getElementById('affichage-pr');
+        const affichageCoords = document.getElementById('affichage-coords');
 
-            if (!navigator.geolocation) {
-                alert("La géolocalisation n'est pas supportée par votre navigateur.");
-                return;
-            }
-
-            // 1. Activation du GPS
-            btn.disabled = true;
-            statut.innerText = "Recherche du signal satellite (GPS)...";
-            affichagePr.innerText = "Calcul...";
-
-            navigator.geolocation.getCurrentPosition(
-                (position) => {
-                    const lat = position.coords.latitude;
-                    const lon = position.coords.longitude;
-                    
-                    affichageCoords.innerText = `Lat: ${lat.toFixed(5)} | Lon: ${lon.toFixed(5)}`;
-                    statut.innerText = "Interrogation des serveurs IGN...";
-
-                    // 2. URL mise à jour pour la nouvelle plateforme GéOPF de l'IGN
-                    const urlIGN = `https://data.geopf.fr/geocodage/reverse?lon=${lon}&lat=${lat}&index=reverse_geocode_lineaire`;
-
-                    fetch(urlIGN)
-                        .then(response => {
-                            if (!response.ok) throw new Error(`Erreur serveur IGN (${response.status})`);
-                            return response.json();
-                        })
-                        .then(data => {
-                            // 3. Traitement de la réponse de l'IGN
-                            if (data.features && data.features.length > 0) {
-                                const infosRoute = data.features[0].properties;
-                                
-                                const nomRoute = infosRoute.route || "Route inconnue";
-                                const numPR = infosRoute.pr || "0";
-                                const distanceAbs = Math.round(infosRoute.abs || 0); // Distance en mètres après le PR
-
-                                // Affichage final propre
-                                affichagePr.innerText = `${nomRoute} - PR ${numPR} + ${distanceAbs}m`;
-                                affichagePr.style.color = "#27ae60";
-                                affichagePr.style.borderColor = "#2ecc71";
-                                affichagePr.style.background = "#e8f8f0";
-                                statut.innerText = "Position trouvée avec succès !";
-                            } else {
-                                // Cas où le GPS fonctionne mais qu'aucune route n'est détectée autour
-                                affichagePr.innerText = "📍 Hors réseau routier";
-                                affichagePr.style.color = "#d35400";
-                                affichagePr.style.borderColor = "#e67e22";
-                                affichagePr.style.background = "#fdf2e9";
-                                statut.innerText = "Aucune route nationale ou départementale à proximité immédiate.";
-                            }
-                            btn.disabled = false;
-                        })
-                        .catch(erreur => {
-                            // Cas de panne réseau, problème d'adresse URL ou blocage de sécurité
-                            console.error(erreur);
-                            affichagePr.innerText = "❌ Erreur IGN";
-                            affichagePr.style.color = "#c0392b";
-                            affichagePr.style.borderColor = "#e74c3c";
-                            affichagePr.style.background = "#fadbd8";
-                            statut.innerText = `Détail technique : ${erreur.message}`;
-                            btn.disabled = false;
-                        });
-                },
-                (erreurGPS) => {
-                    alert("Erreur GPS : Veuillez activer la localisation de votre appareil et autoriser l'application.");
-                    statut.innerText = "Échec de l'acquisition GPS.";
-                    affichagePr.innerText = "-- Impossible de vous localiser --";
-                    btn.disabled = false;
-                },
-                {
-                    enableHighAccuracy: true, // Force l'utilisation du vrai capteur GPS
-                    timeout: 10000,           // Laisse 10 secondes maximum pour capter
-                    maximumAge: 0             // Pas de position périmée en cache
-                }
-            );
+        if (!navigator.geolocation) {
+            alert("La géolocalisation n'est pas supportée par votre navigateur.");
+            return;
         }
-    </script>
-</body>
-</html>
+
+        btn.disabled = true;
+        statut.innerText = "Recherche du signal satellite (GPS)...";
+        affichagePr.innerText = "Calcul...";
+
+        navigator.geolocation.getCurrentPosition(
+            (position) => {
+                // Sécurité : On force la conversion en nombres décimaux propres pour l'URL
+                const lat = parseFloat(position.coords.latitude);
+                const lon = parseFloat(position.coords.longitude);
+                
+                // Vérification si les coordonnées sont valides
+                if (isNaN(lat) || isNaN(lon)) {
+                    affichagePr.innerText = "Coordonnées invalides";
+                    statut.innerText = "Le GPS a renvoyé des données illisibles.";
+                    btn.disabled = false;
+                    return;
+                }
+                
+                affichageCoords.innerText = `Lat: ${lat.toFixed(5)} | Lon: ${lon.toFixed(5)}`;
+                statut.innerText = "Interrogation des serveurs IGN...";
+
+                // URL corrigée et simplifiée (sans l'index strict pour éviter l'erreur 400)
+                const urlIGN = `https://data.geopf.fr/geocodage/reverse?lon=${lon}&lat=${lat}&index=reverse_geocode_lineaire`;
+
+                fetch(urlIGN)
+                    .then(response => {
+                        if (!response.ok) {
+                            // Si c'est une erreur 400, on l'affiche clairement pour le diagnostic
+                            throw new Error(`Erreur ${response.status} (Requête rejetée par l'IGN)`);
+                        }
+                        return response.json();
+                    })
+                    .then(data => {
+                        if (data.features && data.features.length > 0) {
+                            // On cherche les propriétés de la route dans la réponse
+                            const infosRoute = data.features[0].properties;
+                            
+                            // On extrait les infos (selon ce que l'IGN renvoie)
+                            const nomRoute = infosRoute.route || infosRoute.nom || "Route inconnue";
+                            const numPR = infosRoute.pr !== undefined ? infosRoute.pr : "?";
+                            const distanceAbs = infosRoute.abs !== undefined ? Math.round(infosRoute.abs) : 0;
+
+                            affichagePr.innerText = `${nomRoute} - PR ${numPR} + ${distanceAbs}m`;
+                            affichagePr.style.color = "#27ae60";
+                            affichagePr.style.borderColor = "#2ecc71";
+                            affichagePr.style.background = "#e8f8f0";
+                            statut.innerText = "Position trouvée avec succès !";
+                        } else {
+                            affichagePr.innerText = "📍 Hors réseau routier";
+                            affichagePr.style.color = "#d35400";
+                            affichagePr.style.borderColor = "#e67e22";
+                            affichagePr.style.background = "#fdf2e9";
+                            statut.innerText = "Aucune route répertoriée par l'IGN à cet endroit.";
+                        }
+                        btn.disabled = false;
+                    })
+                    .catch(erreur => {
+                        console.error(erreur);
+                        affichagePr.innerText = "❌ Échec de la requête";
+                        affichagePr.style.color = "#c0392b";
+                        affichagePr.style.borderColor = "#e74c3c";
+                        affichagePr.style.background = "#fadbd8";
+                        statut.innerText = `${erreur.message}. Vérifiez que vous êtes bien à l'extérieur.`;
+                        btn.disabled = false;
+                    });
+            },
+            (erreurGPS) => {
+                statut.innerText = "Échec de l'acquisition GPS.";
+                affichagePr.innerText = "-- Impossible de vous localiser --";
+                btn.disabled = false;
+            },
+            {
+                enableHighAccuracy: true,
+                timeout: 10000,
+                maximumAge: 0
+            }
+        );
+    }
+</script>
+```
+
+Mettez à jour votre fichier `index.html` sur GitHub avec cette version. Elle nettoie les variables avant de les envoyer à l'IGN pour s'assurer que le serveur reçoive exactement ce qu'il attend.
+        </html>
 ```
