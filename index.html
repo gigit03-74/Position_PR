@@ -48,30 +48,33 @@
 
             navigator.geolocation.getCurrentPosition(
                 (position) => {
-                    const lat = position.coords.latitude;
-                    const lon = position.coords.longitude;
+                    // On nettoie les coordonnées en limitant strictement à 5 décimales
+                    const lat = parseFloat(position.coords.latitude.toFixed(5));
+                    const lon = parseFloat(position.coords.longitude.toFixed(5));
                     
-                    affichageCoords.innerText = `Lat: ${lat.toFixed(5)} | Lon: ${lon.toFixed(5)}`;
-                    statut.innerText = "Scan de la base routière...";
+                    affichageCoords.innerText = `Lat: ${lat} | Lon: ${lon}`;
+                    statut.innerText = "Scan de la zone...";
 
-                    // On cherche la route (highway) la plus proche dans un rayon de 50 mètres autour du point GPS
-                    const query = `[out:json];way(around:50,${lat},${lon})[highway];out tags;`;
-                    const urlOSM = `https://overpass-api.de/api/interpreter?data=${encodeURIComponent(query)}`;
+                    // Requête Overpass de secours standardisée
+                    const requeteBrute = `[out:json];way(around:60,${lat},${lon})[highway];out tags;`;
+                    
+                    // Sécurité anti-erreur 400 : On utilise le constructeur officiel pour encoder l'URL proprement
+                    const params = new URLSearchParams();
+                    params.append('data', requeteBrute);
+                    
+                    const urlOSM = `https://overpass-api.de/api/interpreter?${params.toString()}`;
 
                     fetch(urlOSM)
                         .then(response => {
-                            if (!response.ok) throw new Error(`Serveur injoignable (${response.status})`);
+                            if (!response.ok) throw new Error(`Code ${response.status}`);
                             return response.json();
                         })
                         .then(data => {
                             if (data.elements && data.elements.length > 0) {
-                                // On prend la route trouvée la plus proche
                                 const tags = data.elements[0].tags;
+                                const ref = tags.ref || "";
+                                const name = tags.name || "";
                                 
-                                const ref = tags.ref || ""; // Ex: D920
-                                const name = tags.name || ""; // Ex: Route de Paris
-                                
-                                // On formate joliment l'affichage selon les infos dispo
                                 if (ref && name) {
                                     affichagePr.innerText = `${ref} (${name})`;
                                 } else if (ref) {
@@ -91,28 +94,28 @@
                                 affichagePr.style.color = "#d35400";
                                 affichagePr.style.borderColor = "#e67e22";
                                 affichagePr.style.background = "#fdf2e9";
-                                statut.innerText = "Rapprochez-vous d'une voie carrossable (rayon 50m).";
+                                statut.innerText = "Rapprochez-vous d'une route carrossable (rayon 60m).";
                             }
                             btn.disabled = false;
                         })
                         .catch(erreur => {
                             console.error(erreur);
-                            affichagePr.innerText = "❌ Erreur réseau";
+                            affichagePr.innerText = "❌ Erreur de réseau";
                             affichagePr.style.color = "#c0392b";
                             affichagePr.style.borderColor = "#e74c3c";
                             affichagePr.style.background = "#fadbd8";
-                            statut.innerText = erreur.message;
+                            statut.innerText = `Détail : ${erreur.message}`;
                             btn.disabled = false;
                         });
                 },
                 (erreurGPS) => {
-                    statut.innerText = "Signal GPS perdu.";
+                    statut.innerText = "Signal GPS perdu ou refusé.";
                     affichagePr.innerText = "-- Position impossible --";
                     btn.disabled = false;
                 },
                 {
                     enableHighAccuracy: true,
-                    timeout: 12000,
+                    timeout: 10000,
                     maximumAge: 0
                 }
             );
