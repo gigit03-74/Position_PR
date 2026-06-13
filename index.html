@@ -3,118 +3,339 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Patrouille Allier - Haute Précision</title>
+    <title>Patrouille 03 - Saisie & Rapports</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
     <style>
-        body { font-family: Arial, sans-serif; padding: 20px; background: #111; text-align: center; color: white; }
-        .card { background: #222; padding: 25px; border-radius: 15px; box-shadow: 0 6px 20px rgba(0,0,0,0.5); max-width: 380px; margin: 20px auto; border: 2px solid #333; }
-        h2 { margin-top: 0; color: #ecf0f1; font-size: 18px; letter-spacing: 1px; }
-        .pr-display { font-size: 36px; font-weight: bold; color: #2ecc71; background: #000; padding: 25px; border-radius: 10px; margin: 20px 0; border: 3px solid #2ecc71; line-height: 1.3; font-family: 'Courier New', monospace; white-space: pre-line; }
-        .coords { font-size: 11px; color: #666; font-family: monospace; }
-        .status { font-size: 14px; color: #f1c40f; font-weight: bold; }
-        .precision-badge { display: inline-block; padding: 4px 8px; background: #2980b9; border-radius: 4px; font-size: 11px; margin-top: 5px; font-weight: bold; }
+        :root { --primary: #0055a5; --success: #2ecc71; --dark: #111; --card-bg: #222; --border: #333; }
+        body { font-family: 'Segoe UI', Arial, sans-serif; padding: 15px; background: var(--dark); color: white; margin: 0; }
+        .container { max-width: 500px; margin: 0 auto; display: none; } 
+        .card { background: var(--card-bg); padding: 20px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.5); margin-bottom: 20px; border: 1px solid var(--border); }
+        h2 { margin-top: 0; font-size: 16px; letter-spacing: 1px; color: #bdc3c7; border-bottom: 1px solid var(--border); padding-bottom: 8px; }
+        
+        /* Écran de démarrage */
+        #ecran-demarrage { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #111; display: flex; flex-direction: column; justify-content: center; align-items: center; z-index: 9999; padding: 20px; box-sizing: border-box; }
+        .welcome-title { font-size: 20px; font-weight: bold; margin-bottom: 5px; text-align: center; color: #0055a5; }
+        .welcome-subtitle { font-size: 13px; color: #888; margin-bottom: 25px; text-align: center; }
+        .btn-secteur { background: #222; color: white; border: 1px solid #333; padding: 15px; font-size: 15px; font-weight: bold; border-radius: 8px; width: 100%; max-width: 350px; margin-bottom: 10px; cursor: pointer; text-align: left; transition: all 0.2s; display: flex; justify-content: space-between; align-items: center; }
+        .btn-secteur:hover { background: #0055a5; border-color: #0055a5; }
+        .badge-routes { font-size: 11px; background: #333; padding: 3px 8px; border-radius: 12px; color: #aaa; max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+        /* Interface Principale */
+        .pr-live { font-size: 32px; font-weight: bold; color: var(--success); background: #000; padding: 15px; border-radius: 8px; margin: 10px 0; border: 2px solid var(--success); font-family: monospace; text-align: center; white-space: pre-line; }
+        .gps-info { font-size: 11px; color: #888; text-align: center; font-family: monospace; }
+        .btn-capture { background: #e67e22; color: white; border: none; padding: 12px; font-size: 14px; font-weight: bold; border-radius: 6px; cursor: pointer; width: 100%; margin-top: 10px; }
+        .form-group { margin-bottom: 15px; text-align: left; }
+        label { display: block; font-size: 13px; font-weight: bold; margin-bottom: 5px; color: #ecf0f1; }
+        input, select, textarea { width: 100%; padding: 10px; border-radius: 6px; border: 1px solid var(--border); background: #000; color: white; font-size: 14px; box-sizing: border-box; }
+        textarea { resize: vertical; height: 60px; }
+        .radio-group { display: flex; gap: 10px; margin-top: 5px; }
+        .radio-item { flex: 1; text-align: center; background: #000; padding: 10px; border-radius: 6px; border: 1px solid var(--border); cursor: pointer; font-size: 12px; }
+        .radio-item input { display: none; }
+        .radio-item.active { border-color: #e74c3c; background: rgba(231, 76, 60, 0.2); color: #e74c3c; font-weight: bold; }
+        .photo-preview { width: 100%; max-height: 200px; object-fit: cover; border-radius: 6px; margin-top: 10px; display: none; border: 1px solid var(--border); }
+        .action-btns { display: flex; gap: 10px; margin-top: 20px; }
+        .btn-action { flex: 1; padding: 14px; font-size: 14px; font-weight: bold; border-radius: 6px; border: none; cursor: pointer; color: white; }
+        .btn-pdf { background: #c0392b; }
+        .btn-print { background: var(--primary); }
+        #fiche-a4 { display: none; background: white; color: black; padding: 40px; box-sizing: border-box; }
+        .a4-header { border-bottom: 3px solid #0055a5; padding-bottom: 15px; margin-bottom: 25px; display: flex; justify-content: space-between; align-items: center; }
+        .a4-title { font-size: 24px; font-weight: bold; color: #0055a5; margin: 0; }
+        .a4-table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
+        .a4-table td { padding: 12px; border: 1px solid #ddd; font-size: 14px; vertical-align: top; }
+        .a4-table td.label { font-weight: bold; background: #f5f5f5; width: 30%; }
+        .a4-photo { max-width: 100%; max-height: 350px; display: block; margin: 20px auto; border: 1px solid #ccc; object-fit: contain; }
+        .prio-tag { display: inline-block; padding: 4px 10px; border-radius: 4px; font-weight: bold; color: white; }
+        .btn-retour { background: #333; color: #ccc; border: none; padding: 5px 10px; font-size: 11px; border-radius: 4px; float: right; cursor: pointer; margin-top: -5px; }
+
+        @media print {
+            body { background: white; color: black; }
+            .container, #ecran-demarrage { display: none !important; }
+            #fiche-a4 { display: block !important; }
+        }
     </style>
 </head>
 <body>
 
+<div id="ecran-demarrage">
+    <div class="welcome-title">🛠️ PATROUILLE ALLIER (03)</div>
+    <div class="welcome-subtitle">Sélectionnez votre secteur de patrouille</div>
+    
+    <button class="btn-secteur" onclick="choisirSecteur('commentry')">📍 COMMENTRY <span class="badge-routes">D69, D153...</span></button>
+    <button class="btn-secteur" onclick="choisirSecteur('marcllat')">📍 MARCILLAT <span class="badge-routes">D1089, D915...</span></button>
+    <button class="btn-secteur" onclick="choisirSecteur('montmarault')">📍 MONTMARAULT <span class="badge-routes">D4, D243...</span></button>
+    <button class="btn-secteur" onclick="choisirSecteur('secteur4')">📍 SECTEUR 4 <span class="badge-routes">À définir...</span></button>
+    <button class="btn-secteur" onclick="choisirSecteur('secteur5')">📍 SECTEUR 5 <span class="badge-routes">À définir...</span></button>
+</div>
+
+<div class="container" id="app-main">
     <div class="card">
-        <h2>📍 LOCALISATEUR 25 AXES (03)</h2>
-        <div id="statut" class="status">Calibrage des satellites GPS...</div>
-        <div id="affichage-pr" class="pr-display">--.---</div>
-        <div id="precision" class="precision-badge">GPS : Recherche...</div>
-        <div id="affichage-coords" class="coords" style="margin-top:15px;">Calcul Matériel Intégré (100% Autonome)</div>
+        <button class="btn-retour" onclick="revenirAuSecteur()">🔄 Changer secteur</button>
+        <h2>📍 GPS LIVE — SECTEUR : <span id="nom-secteur-actif" style="color:#0055a5;">--</span></h2>
+        <div id="affichage-pr" class="pr-live">CHARGEMENT...</div>
+        <div id="gps-precision" class="gps-info">Attente signal satellite...</div>
+        <button class="btn-capture" onclick="capturerPositionActuelle()">⚡ COPIER LE PR DANS LA FICHE</button>
     </div>
 
-    <script>
-        // BASE DE DONNÉES INTÉGRÉE DIRECTEMENT (Plus besoin de fichier externe !)
-        const tablePR = [
-            {"r":"D4", "pr":0, "lat":46.54125, "lon":3.29814},
-            {"r":"D4", "pr":1, "lat":46.53210, "lon":3.30120},
-            {"r":"D37", "pr":0, "lat":46.41215, "lon":3.15420},
-            {"r":"D39", "pr":0, "lat":46.39850, "lon":3.08410},
-            {"r":"D50", "pr":0, "lat":46.28410, "lon":2.95410},
-            {"r":"D51", "pr":0, "lat":46.31240, "lon":2.89410},
-            {"r":"D69", "pr":0, "lat":46.45120, "lon":2.71240},
-            {"r":"D109", "pr":0, "lat":46.51240, "lon":2.65410},
-            {"r":"D151", "pr":0, "lat":46.15420, "lon":3.12450},
-            {"r":"D152", "pr":0, "lat":46.16850, "lon":3.14120},
-            {"r":"D155", "pr":0, "lat":46.21410, "lon":3.18450},
-            {"r":"D160", "pr":0, "lat":46.25410, "lon":3.21240},
-            {"r":"D314", "pr":0, "lat":46.34120, "lon":3.41250},
-            {"r":"D350", "pr":0, "lat":46.42150, "lon":3.51240},
-            {"r":"D351", "pr":0, "lat":46.44210, "lon":3.53410},
-            {"r":"D409", "pr":0, "lat":46.48510, "lon":3.58410},
-            {"r":"D435", "pr":0, "lat":46.51240, "lon":3.61240},
-            {"r":"D451", "pr":0, "lat":46.54120, "lon":3.65410},
-            {"r":"D460", "pr":0, "lat":46.58450, "lon":3.69850},
-            {"r":"D514", "pr":0, "lat":46.61240, "lon":3.71240},
-            {"r":"D915", "pr":0, "lat":46.35420, "lon":2.41250},
-            {"r":"D943", "pr":0, "lat":46.25410, "lon":2.31240},
-            {"r":"D993", "pr":0, "lat":46.18450, "lon":2.21240},
-            {"r":"D1089", "pr":0, "lat":46.11240, "lon":3.01240},
-            {"r":"D2144", "pr":0, "lat":46.21450, "lon":2.71240},
-            {"r":"D2371", "pr":0, "lat":46.31240, "lon":2.84120}
-        ];
+    <div class="card">
+        <h2>📝 NOUVELLE FICHE D'ANOMALIE</h2>
+        
+        <div class="form-group">
+            <label>Route Départementale</label>
+            <select id="form-route">
+                <option value="">-- Choisir un axe --</option>
+            </select>
+        </div>
 
-        function distancePrecise(lat1, lon1, lat2, lon2) {
-            const R = 6371000;
-            const dLat = (lat2 - lat1) * Math.PI / 180;
-            const dLon = (lon2 - lon1) * Math.PI / 180;
-            const a = Math.sin(dLat/2) * Math.sin(dLat/2) + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon/2) * Math.sin(dLon/2);
-            return R * (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)));
-        }
+        <div class="form-group" style="display: flex; gap: 10px;">
+            <div style="flex: 1;">
+                <label>Numéro de PR</label>
+                <input type="number" id="form-pr" placeholder="Ex: 12">
+            </div>
+            <div style="flex: 1;">
+                <label>Distance + (mètres)</label>
+                <input type="number" id="form-cumul" placeholder="Ex: 450">
+            </div>
+        </div>
 
-        window.onload = function() {
-            if (!navigator.geolocation) {
-                document.getElementById('statut').innerText = "GPS non supporté";
-                return;
-            }
+        <div class="form-group">
+            <label>Nature du défaut / Constat</label>
+            <select id="form-defaut">
+                <option value="Nid de poule / Déformation">Nid de poule / Déformation</option>
+                <option value="Affaissement de rive">Affaissement de rive</option>
+                <option value="Signalisation détruite ou manquante">Signalisation détruite ou manquante</option>
+                <option value="Obstacle (arbre, objet, animal)">Obstacle (arbre, objet, animal)</option>
+                <option value="Glissière de sécurité endommagée">Glissière de sécurité endommagée</option>
+                <option value="Fossé obstrué / Eau stagnante">Fossé obstrué / Eau stagnante</option>
+                <option value="Autre anomalie (voir remarques)">Autre anomalie (voir remarques)</option>
+            </select>
+        </div>
 
-            navigator.geolocation.watchPosition((position) => {
-                const myLat = position.coords.latitude;
-                const myLon = position.coords.longitude;
-                const gpsAccuracy = position.coords.accuracy;
+        <div class="form-group">
+            <label>Niveau de priorité</label>
+            <div class="radio-group">
+                <div class="radio-item active" onclick="setPriority(this, 'Basse')"><input type="radio" name="prio" value="Basse" checked>🟢 Basse</div>
+                <div class="radio-item" onclick="setPriority(this, 'Moyenne')"><input type="radio" name="prio" value="Moyenne">🟡 Moyenne</div>
+                <div class="radio-item" onclick="setPriority(this, 'Urgent')"><input type="radio" name="prio" value="Urgent">🔴 URGENT</div>
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label>Remarques / Observations</label>
+            <textarea id="form-obs" placeholder="Détails supplémentaires..."></textarea>
+        </div>
+
+        <div class="form-group">
+            <label>📸 Ajouter une photo (Appareil ou Fichier)</label>
+            <input type="file" id="form-photo" accept="image/*" capture="camera" onchange="apercuPhoto(this)">
+            <img id="img-preview" class="photo-preview" src="" alt="Aperçu">
+        </div>
+
+        <div class="form-group">
+            <label>Patrouilleur / Agent référent</label>
+            <input type="text" id="form-agent" value="Patrouilleur Allier 03">
+        </div>
+
+        <div class="action-btns">
+            <button class="btn-action btn-print" onclick="genererFiche('print')">🖨️ IMPRIMER</button>
+            <button class="btn-action btn-pdf" onclick="genererFiche('pdf')">💾 EXPORT PDF</button>
+        </div>
+    </div>
+</div>
+
+<div id="fiche-a4">
+    <div class="a4-header">
+        <div>
+            <div class="a4-title">FICHE D'INTERVENTION SUR ANOMALIE</div>
+            <div style="font-size: 12px; color: #555; margin-top: 5px;">Direction des Routes - Département de l'Allier (03)</div>
+        </div>
+        <div id="a4-date" style="text-align: right; font-size: 14px; font-weight: bold;"></div>
+    </div>
+    <table class="a4-table">
+        <tr><td class="label">Localisation</td><td id="a4-localisation" style="font-size: 16px; font-weight: bold; color: #0055a5;"></td></tr>
+        <tr><td class="label">Type d'anomalie</td><td id="a4-defaut" style="font-weight: bold;"></td></tr>
+        <tr><td class="label">Priorité / Urgence</td><td id="a4-priorite"></td></tr>
+        <tr><td class="label">Observations / Détails</td><td id="a4-obs" style="white-space: pre-wrap;"></td></tr>
+        <tr><td class="label">Agent ayant fait le constat</td><td id="a4-agent"></td></tr>
+    </table>
+    <div style="font-weight: bold; margin-top: 20px; border-bottom: 1px solid #ccc; padding-bottom: 5px;">Cliché photographique du constat :</div>
+    <img id="a4-img" class="a4-photo" src="" alt="Aucune photo fournie">
+</div>
+
+<script>
+    // DATA APPLIQUÉE ET STRUCTURÉE SELON TES EXIGENCES
+    const baseSecteurs = {
+        commentry: {
+            nom: "Commentry",
+            routes: ["D69", "D153", "D453", "D154", "D156", "D454", "D189", "D998", "D108", "D482", "D200", "D455", "D37", "D488", "D458", "D158", "D188", "D159", "D4", "D456", "D2371", "D2144"],
+            bornes: [
+                // Exemple de données de bornes [Latitude, Longitude, "Route", Numéro_PR] pour Commentry :
+                [46.2891, 2.7424, "D69", 0], [46.2910, 2.7500, "D69", 1]
+            ]
+        },
+        marcllat: {
+            nom: "Marcillat",
+            routes: ["D1089", "D915", "D4", "D69", "D59", "D51", "D151", "D152", "D155", "D109", "D160", "D460", "D154", "D2144", "D452", "D514", "D314", "D350", "D409", "D435", "D351", "D451"],
+            bornes: [
+                // Exemple pour Marcillat :
+                [46.1654, 2.6312, "D1089", 0], [46.1700, 2.6400, "D1089", 1]
+            ]
+        },
+        montmarault: {
+            nom: "Montmarault",
+            routes: ["D4", "D243", "D308", "D608", "D68", "D429", "D945", "D543", "D531", "D33", "D46", "D201", "D2371", "D158", "D38", "D307", "D407", "D16", "D488", "D159", "D108"],
+            bornes: [
+                // Exemple pour Montmarault :
+                [46.3182, 2.8631, "D4", 10], [46.3200, 2.8700, "D4", 11]
+            ]
+        },
+        secteur4: { nom: "Secteur 4", routes: [], bornes: [] },
+        secteur5: { nom: "Secteur 5", routes: [], bornes: [] }
+    };
+
+    let bornesActives = [];
+    let positionGpsActuelle = { route: "--", pr: 0, metre: 0, dis: 99999 };
+    let base64Photo = "";
+    let watchId = null;
+
+    function choisirSecteur(idSecteur) {
+        const secteur = baseSecteurs[idSecteur];
+        if(!secteur) return;
+
+        bornesActives = secteur.bornes;
+        document.getElementById('nom-secteur-actif').innerText = secteur.nom.toUpperCase();
+
+        const selectRoute = document.getElementById('form-route');
+        selectRoute.innerHTML = '<option value="">-- Choisir un axe --</option>';
+        secteur.routes.forEach(r => {
+            selectRoute.innerHTML += `<option value="${r}">${r}</option>`;
+        });
+
+        document.getElementById('ecran-demarrage').style.display = 'none';
+        document.getElementById('app-main').style.display = 'block';
+
+        demarrerGps();
+    }
+
+    function revenirAuSecteur() {
+        if(watchId) navigator.geolocation.clearWatch(watchId);
+        document.getElementById('app-main').style.display = 'none';
+        document.getElementById('ecran-demarrage').style.display = 'flex';
+        document.getElementById('affichage-pr').innerHTML = "CHARGEMENT...";
+    }
+
+    function calcularDistance(lat1, lon1, lat2, lon2) {
+        const R = 6371000;
+        const dLat = (lat2 - lat1) * Math.PI / 180;
+        const dLon = (lon2 - lon1) * Math.PI / 180;
+        const a = Math.sin(dLat/2) * Math.sin(dLat/2) + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon/2) * Math.sin(dLon/2);
+        return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    }
+
+    function demarrerGps() {
+        if (navigator.geolocation) {
+            watchId = navigator.geolocation.watchPosition(position => {
+                const lat = position.coords.latitude;
+                const lon = position.coords.longitude;
+                const precision = position.coords.accuracy.toFixed(1);
                 
-                document.getElementById('precision').innerText = `Précision GPS : ± ${Math.round(gpsAccuracy)}m`;
-                document.getElementById('affichage-coords').innerText = `LAT: ${myLat.toFixed(6)} | LON: ${myLon.toFixed(6)}`;
+                document.getElementById('gps-precision').innerHTML = `📡 Précision : +/- ${precision}m (Lat: ${lat.toFixed(4)} | Lon: ${lon.toFixed(4)})`;
 
-                let plusPetiteDistance = Infinity;
-                let borneLaPlusProche = null;
+                let bornePlusProche = null;
+                let distanceMin = Infinity;
 
-                // Scan local ultra-rapide (0ms)
-                for (let i = 0; i < tablePR.length; i++) {
-                    const borne = tablePR[i];
-                    const d = distancePrecise(myLat, myLon, borne.lat, borne.lon);
-                    
-                    if (d < plusPetiteDistance) {
-                        plusPetiteDistance = d;
-                        borneLaPlusProche = borne;
+                bornesActives.forEach(borne => {
+                    const dist = calcularDistance(lat, lon, borne[0], borne[1]);
+                    if (dist < distanceMin) {
+                        distanceMin = dist;
+                        bornePlusProche = borne;
                     }
-                }
+                });
 
-                // Affichage si une borne est à moins de 2500m
-                if (borneLaPlusProche && plusPetiteDistance < 2500) {
-                    const route = borneLaPlusProche.r;
-                    const pr = borneLaPlusProche.pr;
-                    const metresCumules = Math.round(plusPetiteDistance);
-
-                    document.getElementById('affichage-pr').innerText = `${route}\nPR ${pr} + ${metresCumules}m`;
-                    document.getElementById('statut').innerText = "SUIVI TEMPS RÉEL ACTIF";
-                    document.getElementById('statut').style.color = "#2ecc71";
+                if (bornePlusProche && distanceMin < 3000) { 
+                    positionGpsActuelle = {
+                        route: bornePlusProche[2],
+                        pr: bornePlusProche[3],
+                        metre: Math.round(distanceMin),
+                        dis: distanceMin
+                    };
+                    document.getElementById('affichage-pr').innerHTML = `${positionGpsActuelle.route}\nPR ${positionGpsActuelle.pr} + ${positionGpsActuelle.metre}m`;
+                    document.getElementById('affichage-pr').style.borderColor = "#2ecc71";
                 } else {
-                    document.getElementById('affichage-pr').innerText = "HORS ZONE";
-                    document.getElementById('statut').innerText = "Trop éloigné des points de calage.";
-                    document.getElementById('statut').style.color = "#e67e22";
+                    document.getElementById('affichage-pr').innerHTML = "HORS AXES DU SECTEUR\n(Aucun PR proche)";
+                    document.getElementById('affichage-pr').style.borderColor = "#e74c3c";
                 }
+            }, err => {
+                document.getElementById('affichage-pr').innerHTML = "GPS INACTIF";
+            }, { enableHighAccuracy: true, maximumAge: 1000 });
+        }
+    }
 
-            }, () => {
-                document.getElementById('statut').innerText = "SIGNAL GPS PERDU";
-                document.getElementById('statut').style.color = "#e74c3c";
-            }, {
-                enableHighAccuracy: true,
-                maximumAge: 0,
-                timeout: 4000
-            });
-        };
-    </script>
+    function setPriority(element, val) {
+        document.querySelectorAll('.radio-item').forEach(item => item.classList.remove('active'));
+        element.classList.add('active');
+        element.querySelector('input').checked = true;
+    }
+
+    function capturerPositionActuelle() {
+        if (positionGpsActuelle.route !== "--") {
+            document.getElementById('form-route').value = positionGpsActuelle.route;
+            document.getElementById('form-pr').value = positionGpsActuelle.pr;
+            document.getElementById('form-cumul').value = positionGpsActuelle.metre;
+        } else {
+            alert("Pas de position GPS valide capturée dans ce secteur pour l'instant.");
+        }
+    }
+
+    function apercuPhoto(input) {
+        if (input.files && input.files[0]) {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                base64Photo = e.target.result;
+                const img = document.getElementById('img-preview');
+                img.src = base64Photo;
+                img.style.display = "block";
+            };
+            reader.readAsDataURL(input.files[0]);
+        }
+    }
+
+    function genererFiche(mode) {
+        const route = document.getElementById('form-route').value;
+        const pr = document.getElementById('form-pr').value;
+        const cumul = document.getElementById('form-cumul').value;
+        if(!route || !pr) { alert("Sélectionne la route et renseigne le PR."); return; }
+
+        const dateCourante = new Date();
+        document.getElementById('a4-date').innerText = `Date : ${dateCourante.toLocaleDateString('fr-FR')} - ${dateCourante.toLocaleTimeString('fr-FR', {hour: '2-digit', minute:'2-digit'})}`;
+        document.getElementById('a4-localisation').innerText = `${route} — PR ${pr} + ${cumul || "0"} m`;
+        document.getElementById('a4-defaut').innerText = document.getElementById('form-defaut').value;
+        
+        const prioriteSelectionnee = document.querySelector('input[name="prio"]:checked').value;
+        const prioTag = document.getElementById('a4-priorite');
+        prioTag.innerText = prioriteSelectionnee.toUpperCase();
+        if(prioriteSelectionnee === "Urgent") prioTag.style.background = "#c0392b";
+        else if(prioriteSelectionnee === "Moyenne") prioTag.style.background = "#d35400";
+        else prioTag.style.background = "#27ae60";
+        prioTag.className = "prio-tag";
+
+        document.getElementById('a4-obs').innerText = document.getElementById('form-obs').value || "Aucune remarque.";
+        document.getElementById('a4-agent').innerText = document.getElementById('form-agent').value;
+        
+        const imgA4 = document.getElementById('a4-img');
+        if(base64Photo) { imgA4.src = base64Photo; imgA4.style.display = "block"; } else { imgA4.style.display = "none"; }
+
+        if(mode === 'print') {
+            window.print();
+        } else if(mode === 'pdf') {
+            const element = document.getElementById('fiche-a4');
+            element.style.display = 'block';
+            html2pdf().set({
+                margin: 10, filename: `Fiche_${route}_PR${pr}.pdf`,
+                image: { type: 'jpeg', quality: 0.85 },
+                html2canvas: { scale: 2 }, jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+            }).from(element).save().then(() => { element.style.display = 'none'; });
+        }
+    }
+</script>
 </body>
-</html>
+</html>             
